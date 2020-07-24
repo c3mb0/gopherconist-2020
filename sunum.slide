@@ -1,0 +1,170 @@
+# Canlıdan Go Kesitleri
+
+Cem Sancak
+ 
+Insider'da Çözüm Mimarı ve Hissedar
+ 
+cem@useinsider.com
+
+25 Temmuz 2020
+
+## Bu adam ne yapar?
+
+.image cem.jpg _ 200
+
+Saniyede 500k'e kadar istek karşılayan sistemlerin çözüm mimarlığıyla uğraşır
+
+6 yıldır çoğunlukla Go, arada Ruby ve JS yazar, Elixir ve Elm takip eder
+
+4 yıldır başkaları adına AWS faturası yakar
+
+3 yıldır Kubernetes kurcalar, pek sever (early/current [Contour](https://projectcontour.io/) user, thx Dave :))
+
+2 yıldır nerede data bulsa ClickHouse'a sokuşturmanın yolunu arar
+
+## Go'nun çok da gizli olmayan silahları
+
+Go'nun zor problemlere pratik çözümler üretebilmesinin arkasındaki 2 ana mekanik kanallar (channels) ve goroutine'ler
+
+Goroutine'ler diğer dillerdeki green thread'lere tekabül eder
+
+Normal thread modeli kullanan diller 1 program thread'i 1 OS thread'i oluşturur
+
+Green thread modeli kullanan diller 1 program thread'i N OS thread'i oluşturur
+
+Bu N sayısı dilin runtime'ı tarafından yönetilir
+
+Go runtime detayları için Jaana'nın blog'undaki [aydınlatıcı yazıyı](https://rakyll.org/scheduler/) okuyabilirsiniz
+
+Kanalların bir çok alternatif kullanımı olmakla beraber, temel amaçları koşan goroutine'ler arasında iletişim sağlamaktır
+
+## Eş zamanlı düşünebilmek
+
+Başka dillerde program dışı koordinasyon mekanizmaları gerektiren problemleri tek bir yerde çözebilmek Go'nun en güçlü olduğu noktalardan biridir
+
+Kullan at goroutine'lerden ziyade, programın hayatı süresince ayakta olacak ve belli bir görev tanımı olan goroutine'ler tanımlayabilirsiniz
+
+Bu goroutine'lerle de kanallar aracılığıyla etkileşebilirsiniz
+
+Bir nevi servis içinde mikroservis mimarisi tasarlayabilirsiniz
+
+## Örnek bir mobil uygulama servisi - Bugün de Bir Şey Öğrendik
+
+Veri tabanınızda bir tabloda her gün yollanmak üzere oluşturulup yazılan kelimeler olsun
+
+Başka bir tabloda da bu servise üye olmuş kullanıcılarınız olsun
+
+Bu servis hem Android hem de iOS platformlarında hizmet verebiliyor olsun
+
+Her gün kullanıcılarımıza yeni bir kelime öğretmek amacıyla bildirim mesajı atıyor olalalım
+
+## Naif bir başlangıç
+
+.iframe https://play.golang.org/p/aw7jCsK4nT_W 500 1000
+
+## Naif bir başlangıç
+
+.image one.png _ 300
+
+Bu yaklaşımda bütün işlemlerimizi tek bir goroutine'den (main) yürütüyoruz
+
+## Kanatlarımızı azıcık açalım
+
+.iframe https://play.golang.org/p/M9o0FXJ3OFa 500 1000
+
+## Kanatlarımızı azıcık açalım
+
+.image two.png _ 300
+
+Bu yaklaşımda APNS ve GCM ile olan etkileşimlerin sorumluluğunu programın başında açılan goroutine'lere devrettik
+
+Açılan goroutine'lerle kanallar aracılığıyla etkileşimde bulunduk
+
+Genel koordinasyonu sağlamak için WaitGroup'dan yararlandık
+
+## Daha da açalım
+
+.iframe https://play.golang.org/p/wqpE7rALvLx 500 1000
+
+## Daha da açalım
+
+.image three.png _ 400
+
+Bu yaklaşımda bir önceki örnekte network sorumluluklarını paylaşan goroutine'lerin üzerine bir de veri tabanı sorumluluklarını paylaşan 2 goroutine daha eklemiş olduk
+
+Yeni goroutine'lerin öncekilerden farkı ömür döngülerinin kısıtlı olması - program boyunca değil iş boyunca çalışıyorlar
+
+Goroutine'ler ya program boyunca çalışacak şekilde, ya da ne zaman biteceği kesinlikle bilinerek açılmalıdır
+
+## UÇAK MODUNA GEÇELİM
+
+.image goroutines.jpg _ 700
+
+## UÇAK MODUNA GEÇELİM
+
+.iframe https://play.golang.org/p/O9xGB0Qv2RR 500 1000
+
+## UÇAK MODUNA GEÇELİM
+
+.image four.png _ 500
+
+## UÇAK MODUNA GEÇELİM
+
+Son yaklaşımımızda network ile ilgilenen goroutine'lerimizin attıkları istekleri de goroutine'lere parçalayarak verimimizi iyice arttırdık
+
+Kurduğumuz goroutine yapısıyla:
+
+ - Kelimeleri çekmek 500ms
+ - iOS ve Android kullanıcılarını çekmek 500ms
+ - Bütün istekleri atmak 100ms
+ 
+## E bu çok güzelmiş, her şeyi goroutine'lerle halledelim bundan sonra
+
+Diye düşünmeyin
+
+Green thread modeli normal thread modeline göre daha hafif olsa da, bu yaklaşımın da limitleri var
+
+Kullandığınız makinanın kaynakları çerçevesinde, belli bir miktar goroutine'den sonra Go'nun runtime'ı iş yapmaktan ziyade koşan goroutine'lerin yönetimine daha fazla zaman harcamaya başlayacaktır
+
+Aynı şekilde goroutine'lerin ana amacı CPU kullanım verimini arttırmaktır, performans kovaladığınız senaryolarda önünüzde başka bir engel olabilir - ağ genişliği, disk kapasiteleri, bellek kapasitesi bunlardan bazıları
+
+Bunlar göz önünde bulundurularak, daha fazla goroutine = daha fazla performans demek doğru değildir
+
+İdeal goroutine sayısını servis senaryolarına ve makina kaynaklarına göre belirlemek gerekir
+
+## Örnek servisimize dönecek olursak
+
+Diyelim ki 100 milyon kullanıcımız oldu, büyüyüp globalleştik
+
+Artık her gün 200 milyon istek atmamız gerekiyor
+
+Kodumuzun son haliyle bunu yaparsak bizi ne bekler?
+
+## Hüzün ve hüsran
+
+.image htop.png _ 1000
+
+200 milyon goroutine ve network isteği yüzünden makinanızın kullanılamaz hale gelmesi çok muhtemel
+
+Bu gücü kontrol edebiliyor olmamız lazım
+
+## Alternatif kanal kullanımları
+
+Önümüzdeki konular için hatırlamamız gereken kanal karakteristikleri:
+
+- Dolu kanala yazılamaz
+
+- Boş kanaldan okunamaz
+
+- Kapalı kanala yazmak panik attırır
+
+- Kapalı kanaldan her zaman kanal tipine göre default value okunur
+
+Bir de kanallardan bağımsız struct{}{} değerinin bellekte 0 yer tuttuğunu bilmemiz gerekiyor - merakınızı yakaladıysa bu konu hakkında Dave'in yazdığı [aydınlatıcı yazıyı](https://dave.cheney.net/2014/03/25/the-empty-struct) okuyabilirsiniz
+
+Bu bilgileri birleştirerek bir goroutine kontrol mekanizması hazırlayabiliriz
+
+## Kontrollü goroutine salınımı
+
+.iframe https://play.golang.org/p/-IMBBPblmYN 500 1000
+
