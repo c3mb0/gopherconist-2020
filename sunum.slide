@@ -12,7 +12,7 @@ cem@useinsider.com
 
 .image cem.jpg _ 200
 
-Saniyede 500k'e kadar istek karşılayan sistemlerin çözüm mimarlığıyla uğraşır
+Saniyede 200k'e kadar istek karşılayan sistemlerin çözüm mimarlığıyla uğraşır
 
 6 yıldır çoğunlukla Go, arada Ruby ve JS yazar, Elixir ve Elm takip eder
 
@@ -134,7 +134,7 @@ Bunlar göz önünde bulundurularak, daha fazla goroutine = daha fazla performan
 
 ## Örnek servisimize dönecek olursak
 
-Diyelim ki 100 milyon kullanıcımız oldu, büyüyüp globalleştik
+Diyelim ki 200 milyon kullanıcımız oldu, büyüyüp globalleştik
 
 Artık her gün 200 milyon istek atmamız gerekiyor
 
@@ -168,3 +168,49 @@ Bu bilgileri birleştirerek bir goroutine kontrol mekanizması hazırlayabiliriz
 
 .iframe https://play.golang.org/p/-IMBBPblmYN 500 1000
 
+## Sinyalleşme amaçlı kanal kullanımı
+
+Bir goroutine'in kapanmasını ya da sorumlu olduğu akışın dışında bir şey yapmasını istediğiniz zaman kanallardan yararlanabilirsiniz
+
+## Sinyalleşme amaçlı kanal kullanımı
+
+.iframe https://play.golang.org/p/fB2F06hjO9l 500 1000
+
+## Sinyalleşme amaçlı kanal kullanımı
+
+.image five.png _ 500
+
+Mesajları yollamakla ve logları toplamakla sorumlu 2 goroutine açtık
+
+Mesajlar yollandıkça alınan sonuçlar kanal aracılığıyla loglama goroutine'ine yollandı
+
+Loglama goroutine'i closeChan'den okuyabildiği an başta olusturduğu bir cevap kanalına o ana kadar topladığı sonuçları yazıp kapandı
+
+## Yazdığınız servislerin temiz kapanabildiğinden emin olun!
+
+Bu kadar esnek eş zamanlı işlem yapabilme özgürlüğüyle beraber servis kapanımlarında ekstra dikkat sorumluluğu da geliyor
+
+Uzun zamanlı açtığınız her goroutine'i tercihen işini yarıda bölmeden kapayabilmeyi planlamalısınız
+
+Bunun için standart kütüphanenin parçası olan context paketinden ve WaitGroup'lardan yararlanabilirsiniz
+
+Her zaman SIGINT ve SIGTERM dinleyin!
+
+## Yazdığınız servislerin temiz kapanabildiğinden emin olun!
+
+Sandbox ortamında demo'sunu yapmak mümkün değil fakat çoğu servisinizin main fonksiyonunun sonunda bulunması gereken kod parçası:
+
+    quit := make(chan os.Signal)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+    ... temiz kapanma işlemleri ...
+
+Bu kod program işletim sistemi tarafından kapatılmak istenene kadar main goroutine'i bekletecektir
+
+Beklemesinin sebebi quit kanalının boş olmasıdır, signal.Notify fonksiyonuna bu kanalı vererek runtime'a belirtilen OS sinyalleri geldiğinde bu kanal üstünden haberdar olmak istediğimizi belirtmiş oluyoruz
+
+Bunun için tabii ki de servisinizin ve parçalarının main goroutine'den farklı goroutine'lerde koşması gerekiyor
+
+## Yazdığınız servislerin temiz kapanabildiğinden emin olun!
+
+.iframe https://play.golang.org/p/o3rtje7Jec5 500 1000
